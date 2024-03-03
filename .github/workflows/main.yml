@@ -11,24 +11,21 @@ jobs:
       - name: Create debian package
         shell: bash
         run: |
-            pwd
-            cd installer/bundle_builder/ingredients/deb/byoh-ingredients-download/
-            sudo apt-get install build-essential fakeroot devscripts
-            sudo apt-get install libmysqlclient-dev
-            sudo mk-build-deps -i debian/control
+            sudo apt-get install build-essential fakeroot devscripts libmysqlclient-dev equivs -y
+            sudo mk-build-deps -i --tool='apt-get -o Debug::pkgProblemResolver=yes --no-install-recommends --yes' debian/control
             sudo debuild -b -uc -us
-            mkdir /tmp/slurm-deb-pkgs
-            cp ../*.deb /tmp/slurm-deb-pkgs
+            sudo mkdir /tmp/slurm-deb-pkgs
+            sudo cp ../*.deb /tmp/slurm-deb-pkgs
       - name: Pushing Debian packages
         shell: bash
         env: 
-           docker_pass: ${{ secrets.DOCKER_PASSWORD }}
-        run: |     
-            md64 /usr/bin/imgpkg
+           docker_pass: b0d2dd30-cca5-48ee-aa01-45a94fdc8751
+        run: |
+            cd $HOME
             mkdir local-bin/
             curl -L https://carvel.dev/install.sh | K14SIO_INSTALL_BIN_DIR=local-bin bash
             export PATH=$PWD/local-bin/:$PATH
-            cp local-bin/* /usr/bin/
+            sudo cp local-bin/* /usr/bin/
             docker login -u kubedrona -p ${{ env.docker_pass }}
             cd /tmp/slurm-deb-pkgs
             echo Pushing bundle "$*"
