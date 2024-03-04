@@ -19,16 +19,16 @@ jobs:
       - name: Pushing Debian packages
         shell: bash
         env: 
-           docker_pass: b0d2dd30-cca5-48ee-aa01-45a94fdc8751
+           docker_pass: f5e2c72a-ac20-4fc9-9cc1-cab0406af582
         run: |
             cd $HOME
             mkdir local-bin/
             curl -L https://carvel.dev/install.sh | K14SIO_INSTALL_BIN_DIR=local-bin bash
             export PATH=$PWD/local-bin/:$PATH
             sudo cp local-bin/* /usr/bin/
-            docker login -u kubedrona -p ${{ env.docker_pass }}
+            sudo docker login -u kubedrona -p ${{ env.docker_pass }}
             cd /tmp/slurm-deb-pkgs
             echo Pushing bundle "$*"
             echo $@
-            imgpkg push -f . -i docker.io/coredgeio/slurm-debian-ubuntu_22.04_x86-64:v${{env.VERSION}}
+            sudo imgpkg push -f . -i docker.io/coredgeio/slurm-debian-ubuntu_22.04_x86-64:v${{env.VERSION}}
             echo Done
