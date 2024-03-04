@@ -14,6 +14,7 @@ import pytest
 import re
 import shutil
 import stat
+import socket
 import subprocess
 import sys
 import time
@@ -29,6 +30,26 @@ default_polling_timeout = 15
 default_sql_cmd_timeout = 120
 
 PERIODIC_TIMEOUT = 30
+
+
+def get_open_port():
+    """Finds an open port
+
+    Warning: Race conditions abound so be ready to retry calling function;
+
+    Example:
+        >>> while not some_test(port):
+        >>>     port = get_open_port()
+
+    Shamelessly based on:
+    https://stackoverflow.com/questions/2838244/get-open-tcp-port-in-python
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("", 0))
+    s.listen(1)
+    port = s.getsockname()[1]
+    s.close()
+    return port
 
 
 def node_range_to_list(node_expression):
@@ -844,10 +865,12 @@ def get_config_parameter(name, default=None, **get_config_kwargs):
     config_dict = get_config(**get_config_kwargs)
 
     # Convert keys to lower case so we can do a case-insensitive search
-    lower_dict = dict((key.lower(), value) for key, value in config_dict.items())
+    lower_dict = dict(
+        (key.casefold(), str(value).casefold()) for key, value in config_dict.items()
+    )
 
-    if name.lower() in lower_dict:
-        return lower_dict[name.lower()]
+    if name.casefold() in lower_dict:
+        return lower_dict[name.casefold()]
     else:
         return default
 
@@ -876,10 +899,10 @@ def config_parameter_includes(name, value, **get_config_kwargs):
     config_dict = get_config(**get_config_kwargs)
 
     # Convert keys to lower case so we can do a case-insensitive search
-    lower_dict = dict((key.lower(), value) for key, value in config_dict.items())
+    lower_dict = dict((key.casefold(), value) for key, value in config_dict.items())
 
-    if name.lower() in lower_dict and value.lower() in map(
-        str.lower, lower_dict[name.lower()].split(",")
+    if name.casefold() in lower_dict and value.lower() in map(
+        str.lower, lower_dict[name.casefold()].split(",")
     ):
         return True
     else:
@@ -1046,7 +1069,7 @@ def remove_config_parameter_value(name, value, source="slurm"):
     value_list = get_config_parameter(
         name, live=False, quiet=True, source=source
     ).split(",")
-    value_list.remove(value)
+    value_list.remove(value.casefold())
     if value_list:
         set_config_parameter(name, ",".join(value_list), source=source)
     else:
@@ -1132,9 +1155,25 @@ def require_config_parameter(
         >>> require_config_parameter("PartitionName", {"primary": {"Nodes": "ALL"}, "dynamic1": {"Nodes": "ns1"}, "dynamic2": {"Nodes": "ns2"}, "dynamic3": {"Nodes": "ns1,ns2"}})
     """
 
+    if isinstance(parameter_value, dict):
+        tmp1_dict = dict()
+        for k1, v1 in parameter_value.items():
+            tmp2_dict = dict()
+            for k2, v2 in v1.items():
+                if isinstance(v2, str):
+                    tmp2_dict[k2.casefold()] = v2.casefold()
+                else:
+                    tmp2_dict[k2.casefold()] = v2
+            tmp1_dict[k1.casefold()] = tmp2_dict
+
+        parameter_value = tmp1_dict
+    elif isinstance(parameter_value, str):
+        parameter_value = parameter_value.casefold()
+
     observed_value = get_config_parameter(
         parameter_name, live=False, source=source, quiet=True
     )
+
     condition_satisfied = False
     if condition is None:
         condition = lambda observed, desired: observed == desired

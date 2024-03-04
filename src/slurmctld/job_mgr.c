@@ -10242,7 +10242,6 @@ static job_state_response_job_t *_append_job_state(job_state_args_t *args,
 
 	xassert(job_id > 0);
 
-	xassert(*args->jobs_count_ptr >= 0);
 	(*args->jobs_count_ptr)++;
 	if (!try_xrecalloc((*args->jobs_pptr), *args->jobs_count_ptr,
 			   sizeof(**args->jobs_pptr))) {
@@ -13799,6 +13798,7 @@ static int _update_job(job_record_t *job_ptr, job_desc_msg_t *job_desc,
 
 	if ((job_desc->min_nodes != NO_VAL) &&
 	    (IS_JOB_RUNNING(job_ptr) || IS_JOB_SUSPENDED(job_ptr))) {
+		uint32_t new_min_task_cnt;
 		/*
 		 * Use req_nodes to change the nodes associated with a running
 		 * for lack of other field in the job request to use
@@ -13963,6 +13963,17 @@ static int _update_job(job_record_t *job_ptr, job_desc_msg_t *job_desc,
 					    &job_ptr->gres_detail_cnt,
 					    &job_ptr->gres_detail_str,
 					    &job_ptr->gres_used);
+
+		/*
+		 * Ensure that the num_tasks is less than
+		 * the number of cpus now that tasks can be changed
+		 * for a running job.
+		 */
+		new_min_task_cnt = job_ptr->cpu_cnt / detail_ptr->cpus_per_task;
+		if (detail_ptr->num_tasks > new_min_task_cnt)
+			detail_ptr->num_tasks = new_min_task_cnt;
+
+		tres_req_cnt_set = false;
 	}
 
 	if (job_desc->ntasks_per_node != NO_VAL16) {
@@ -14934,6 +14945,22 @@ extern void job_post_resize_acctg(job_record_t *job_ptr)
 	acct_policy_add_job_submit(job_ptr, false);
 	/* job_set_alloc_tres() must be called before acct_policy_job_begin() */
 	job_set_alloc_tres(job_ptr, false);
+
+	/*
+	 * Clear out the old request and replace it with the new alloc.
+	 * This probably isn't totally perfect in all situations, but it will
+	 * make it tres_req_* correct enough to the user. The tres_req_* isn't
+	 * used to make any decisions. It is stored in the database, but only
+	 * as a reference for non-pending jobs, which in this case will always
+	 * be the case.
+	 */
+	memcpy(job_ptr->tres_req_cnt, job_ptr->tres_alloc_cnt,
+	       slurmctld_tres_cnt * sizeof(uint64_t));
+	xfree(job_ptr->tres_req_str);
+	job_ptr->tres_req_str = xstrdup(job_ptr->tres_alloc_str);
+	xfree(job_ptr->tres_fmt_req_str);
+	job_ptr->tres_fmt_req_str = xstrdup(job_ptr->tres_fmt_alloc_str);
+
 	acct_policy_job_begin(job_ptr, false);
 	job_claim_resv(job_ptr);
 
@@ -18284,6 +18311,12 @@ static bitstr_t *_make_requeue_array(char *conf_buf)
 static void _set_job_requeue_exit_value(job_record_t *job_ptr)
 {
 	int exit_code;
+
+	/* --no-requeue option supercedes config for RequeueExit &
+	 * RequeueExitHold
+	 */
+	if (job_ptr->details && !job_ptr->details->requeue)
+		return;
 
 	exit_code = WEXITSTATUS(job_ptr->exit_code);
 
