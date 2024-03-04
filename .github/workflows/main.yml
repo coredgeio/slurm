@@ -29,6 +29,5 @@ jobs:
             sudo docker login -u kubedrona -p ${{ env.docker_pass }}
             cd /tmp/slurm-deb-pkgs
             echo Pushing bundle "$*"
-            echo $@
             sudo imgpkg push -f . -i docker.io/coredgeio/slurm-debian-ubuntu_22.04_x86-64:v${{env.VERSION}}
             echo Done
