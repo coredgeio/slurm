@@ -2,7 +2,14 @@ name: push deb
 env:
   VERSION: "23.11.3"
   apt-version: "1.27"
-on: [ workflow_dispatch ]
+on:
+  workflow_dispatch:
+      inputs:
+        tags:
+          description: 'Test scenario tags'
+          required: true
+          type: string
+
 jobs:
   script:
     runs-on: ubuntu-22.04
