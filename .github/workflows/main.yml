@@ -19,7 +19,7 @@ jobs:
         shell: bash
         run: |
             echo "Release tag : ${{ github.event.inputs.tag }}"
-            git checkout github.event.inputs.tag
+            #git checkout ${{ github.event.inputs.tag }}
             sudo apt-get install build-essential fakeroot devscripts libmysqlclient-dev equivs -y
             sudo mk-build-deps -i --tool='apt-get -o Debug::pkgProblemResolver=yes --no-install-recommends --yes' debian/control
             sudo debuild -b -uc -us
