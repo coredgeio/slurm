@@ -5,8 +5,8 @@ env:
 on:
   workflow_dispatch:
       inputs:
-        tags:
-          description: 'Test scenario tags'
+        tag:
+          description: 'Create slurm debian packages for release tag'
           required: true
           type: string
 
@@ -18,6 +18,8 @@ jobs:
       - name: Create debian package
         shell: bash
         run: |
+            echo "Release tag : ${{ github.event.inputs.tag }}"
+            git checkout github.event.inputs.tag
             sudo apt-get install build-essential fakeroot devscripts libmysqlclient-dev equivs -y
             sudo mk-build-deps -i --tool='apt-get -o Debug::pkgProblemResolver=yes --no-install-recommends --yes' debian/control
             sudo debuild -b -uc -us
